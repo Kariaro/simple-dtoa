@@ -14,10 +14,10 @@
 // https://baseconvert.com/ieee-754-floating-point
 
 std::string d_to_s_v(double a_value) {
-	std::string lr = d_to_s(a_value);
-	double read = s_to_d(lr);
-	std::string rl = d_to_s(read);
-	std::string er = d_to_s(a_value - read);
+	std::string lr = simple_dtoa(a_value);
+	double read = simple_atod(lr);
+	std::string rl = simple_dtoa(read);
+	std::string er = simple_dtoa(a_value - read);
 
 	std::cout.precision(18);
 	std::cout << std::scientific
@@ -35,15 +35,15 @@ std::string d_to_s_v(double a_value) {
 	int mul_idx = 13;
 	uint64_t v_low = 1ull << 31;
 	uint64_t v_hig = (1ull << 32) - 1ull;
-	for(int i = 1; i < 32 && mul > 1; i++) {
+	for (int i = 1; i < 32 && mul > 1; i++) {
 		// get highest bit
 		int v_low_idx = 0;
-		for(v_low_idx = 0; (((v_low * mul) << v_low_idx) >> 63) != 1; v_low_idx++);
+		for (v_low_idx = 0; (((v_low * mul) << v_low_idx) >> 63) != 1; v_low_idx++);
 		int v_hig_idx = 0;
-		for(v_hig_idx = 0; (((v_hig * mul) << v_hig_idx) >> 63) != 1; v_hig_idx++);
+		for (v_hig_idx = 0; (((v_hig * mul) << v_hig_idx) >> 63) != 1; v_hig_idx++);
 
-		if((v_low * mul) / mul != v_low) break;
-		if((v_hig * mul) / mul != v_hig) break;
+		if ((v_low * mul) / mul != v_low) break;
+		if ((v_hig * mul) / mul != v_hig) break;
 
 		// std::cout << "------------------" << std::endl;
 		// std::cout << std::bitset<32>(v_low >> 32) << ":" << std::bitset<32>(v_low) << std::endl;
@@ -68,15 +68,15 @@ std::string d_to_s_v(double a_value) {
 	int div_idx = 13;
 	uint64_t v_low = 1ull << 63;
 	uint64_t v_hig = ~0ull;
-	for(int i = 1; i < 32 && div > 1; i++) {
-		if((v_low / div) == 0) break;
-		if((v_hig / div) == 0) break;
+	for (int i = 1; i < 32 && div > 1; i++) {
+		if ((v_low / div) == 0) break;
+		if ((v_hig / div) == 0) break;
 
 		// get highest bit
 		int v_low_idx = 0;
-		for(v_low_idx = 0; (((v_low / div) << v_low_idx) >> 63) != 1; v_low_idx++);
+		for (v_low_idx = 0; (((v_low / div) << v_low_idx) >> 63) != 1; v_low_idx++);
 		int v_hig_idx = 0;
-		for(v_hig_idx = 0; (((v_hig / div) << v_hig_idx) >> 63) != 1; v_hig_idx++);
+		for (v_hig_idx = 0; (((v_hig / div) << v_hig_idx) >> 63) != 1; v_hig_idx++);
 
 		// std::cout << "------------------" << std::endl;
 		// std::cout << std::bitset<32>(v_low >> 32) << ":" << std::bitset<32>(v_low) << std::endl;
@@ -108,7 +108,7 @@ int main(int argc, char** argv)
 	d_to_s_v(9007199254740990.0 * (1ull << 15));
 	d_to_s_v(9007199254740990.0 * (1ull << 16));
 */
-	s_to_d(d_to_s_v(9007199254740990.0 * (1ull << 11)));
+	simple_atod(d_to_s_v(9007199254740990.0 * (1ull << 11)));
 
 	d_to_s_v(9007199254740990.0 * (1ull << 11));
 	d_to_s_v(9007199254740990.0 * (1ull << 12));
@@ -153,7 +153,13 @@ int main(int argc, char** argv)
 	d_to_s_v(18'446'744'073'709'551'615.0);
 	d_to_s_v(20'446'744'073'709'551'615.0);
 	d_to_s_v(4.5865e+199);
-	/**/
+
+	// Check subnormals
+	double test = DBL_TRUE_MIN;
+	for (int i = 0; i < 52; i++) {
+		d_to_s_v(test);
+		test *= 2.0;
+	}
 
 	//std::uniform_real_distribution<double> unif(1e-100,1e-26);
 	std::uniform_int_distribution<int> uexp(-307, 308);
@@ -167,33 +173,33 @@ int main(int argc, char** argv)
 	constexpr size_t iter = 1'000'000'000'000ull;
 	constexpr bool check_std = false;
 	std::vector<double> data(buff);
-	for(size_t i = 0; i < buff; i++) {
+	for (size_t i = 0; i < buff; i++) {
 		double v{};
 		v = upar(re) * std::pow(10.0, uexp(re));
 		data[i] = v;
 	}
 
 	auto start = std::chrono::high_resolution_clock::now();
-	if(check_std) {
+	if (check_std) {
 		char buffer[4096]{};
 		// 2460900 ops / sec
-		for(size_t i = 0; i < iter; i++) {
+		for (size_t i = 0; i < iter; i++) {
 			double v = data[i % buff];
 			double c{};
 			auto res = std::to_chars(buffer, buffer + 4095, v);
 			std::from_chars(buffer, res.ptr, c);
 			*res.ptr = '\0';
 
-			if((i % 100000) == 0) {
+			if ((i % 100000) == 0) {
 				auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(
 					std::chrono::high_resolution_clock::now() - start
 				);
 				auto ratio = static_cast<double>(i) / (static_cast<double>(time.count()) / 1000000000.0);
 				std::cout << i << " : " << (int) ratio << " ops / sec" << std::endl;
 			}
-			if((c - v) != 0) {
-				std::string rv = d_to_s(c);
-				std::string dv = d_to_s(c - v);
+			if ((c - v) != 0) {
+				std::string rv = simple_dtoa(c);
+				std::string dv = simple_dtoa(c - v);
 				std::cout << v << " : " << buffer << " : " << rv << ": " << dv << std::endl;
 				break;
 			}
@@ -207,34 +213,34 @@ int main(int argc, char** argv)
 		//  3641439
 
 		// 2x slower than charconv
-		for(size_t i = 0; i < iter; i++) {
+		for (size_t i = 0; i < iter; i++) {
 			double v = data[i % buff];
 
 			int len = d_to_s_a(buffer, v);
 			double c = s_to_d_a(buffer.data(), buffer.data() + len);
 			buffer[len] = '\0';
 
-			if((i % 100000) == 0) {
+			if ((i % 100000) == 0) {
 				auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(
 					std::chrono::high_resolution_clock::now() - start
 				);
 				auto ratio = static_cast<double>(i) / (static_cast<double>(time.count()) / 1000000000.0);
 				std::cout << i << " : " << (int) ratio << " ops / sec" << std::endl;
 			}
-			if((c - v) != 0) {
-				std::string rv = d_to_s(c);
-				std::string dv = d_to_s(c - v);
+			if ((c - v) != 0) {
+				std::string rv = simple_dtoa(c);
+				std::string dv = simple_dtoa(c - v);
 				std::cout << i << ":" << v << " : " << buffer.data() << " : " << rv << ": " << dv << std::endl;
 				break;
 			}
 		}
 	}
 
-	// d_to_s(0.0/0.0);
-	// d_to_s(NAN);
-	// d_to_s(INFINITY);
-	// d_to_s(-INFINITY);
-	// d_to_s(HUGE_VAL);
+	// d_to_s_v(0.0/0.0);
+	// d_to_s_v(NAN);
+	// d_to_s_v(INFINITY);
+	// d_to_s_v(-INFINITY);
+	// d_to_s_v(HUGE_VAL);
 
 	return 0;
 }
